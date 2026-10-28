@@ -8,8 +8,12 @@ on:
 
 jobs:
   win:
-    name: "Windows Build"
+    name: "Windows Build (${{ matrix.arch }})"
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x64, ARM64]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -17,7 +21,7 @@ jobs:
       - name: Build project
         shell: pwsh
         run: |
-          cmake -S . -B build -A x64
+          cmake -S . -B build -A ${{ matrix.arch }}
           cmake --build build --config RelWithDebInfo
 
       - name: Collect outputs
@@ -27,8 +31,23 @@ jobs:
           Get-ChildItem build/bin -Recurse -Include *.exe,*.dll,*.pdb | Copy-Item -Destination _output
           Get-ChildItem _output
 
+      - name: Smoke test qc under debugger
+        if: matrix.arch == 'x64'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          mkdir _qc; cd _qc
+          Invoke-WebRequest https://raw.githubusercontent.com/d1str4ught/m2dev-server/main/share/locale/english/quest/ItemInformer.quest -OutFile ItemInformer.quest
+          Copy-Item ../_output/qc.exe, ../_output/qc.pdb .
+          $cdb = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($cdb) {
+            & $cdb.FullName -g -G -y "$PWD" -c ".lines -e; .ecxr; kpn 30; q" .\qc.exe ItemInformer.quest
+          } else {
+            .\qc.exe ItemInformer.quest; "exit: $LASTEXITCODE"
+          }
+
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: output_win
+          name: output_win_${{ matrix.arch }}
           path: _output
