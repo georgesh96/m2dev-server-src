@@ -58,10 +58,12 @@ inline unsigned sleep(unsigned sec) {
 	::Sleep(sec * 1000);
 	return 0;
 }
+#if defined(_MSC_VER) && _MSC_VER < 1800 // UCRT (VS2013+) provides rint
 inline double rint(double x)
 {
 	return ::floor(x+.5);
 }
+#endif
 
 
 #else

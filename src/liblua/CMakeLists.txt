@@ -31,4 +31,10 @@
 
 add_library(liblua STATIC ${LUA_SOURCES})
 
+# MSVC's optimizer miscompiles Lua 5.0's table rehash (resize() receives nasize=INT_MIN),
+# crashing qc and game at quest load. Debug and clang-cl builds are unaffected.
+if (MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")
+	target_compile_options(liblua PRIVATE /Od)
+endif()
+
 target_include_directories(liblua PUBLIC "include" .)

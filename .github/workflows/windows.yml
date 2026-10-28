@@ -31,20 +31,19 @@ jobs:
           Get-ChildItem build/bin -Recurse -Include *.exe,*.dll,*.pdb | Copy-Item -Destination _output
           Get-ChildItem _output
 
-      - name: Smoke test qc under debugger
+      - name: Smoke test - compile all quests with qc
         if: matrix.arch == 'x64'
-        continue-on-error: true
         shell: pwsh
         run: |
-          mkdir _qc; cd _qc
-          Invoke-WebRequest https://raw.githubusercontent.com/d1str4ught/m2dev-server/main/share/locale/english/quest/ItemInformer.quest -OutFile ItemInformer.quest
-          Copy-Item ../_output/qc.exe, ../_output/qc.pdb .
-          $cdb = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\cdb.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($cdb) {
-            & $cdb.FullName -g -G -y "$PWD" -c ".lines -e; .ecxr; kpn 30; q" .\qc.exe ItemInformer.quest
-          } else {
-            .\qc.exe ItemInformer.quest; "exit: $LASTEXITCODE"
-          }
+          git clone -q --depth 1 https://github.com/d1str4ught/m2dev-server.git srv
+          $q = "srv/share/locale/english/quest"
+          Copy-Item _output/qc.exe "$q/qc.exe"
+          cd $q
+          python make.py *> make.log
+          $code = $LASTEXITCODE
+          $n = (Get-ChildItem object -Recurse -File).Count
+          "make.py exit: $code, object files: $n"
+          if ($code -ne 0) { Get-Content make.log -Tail 20; exit 1 }
 
       - name: Upload
         uses: actions/upload-artifact@v4
