@@ -1,0 +1,34 @@
+name: windows-build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  win:
+    name: "Windows Build"
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build project
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64
+          cmake --build build --config RelWithDebInfo
+
+      - name: Collect outputs
+        shell: pwsh
+        run: |
+          mkdir _output
+          Get-ChildItem build/bin -Recurse -Include *.exe,*.dll,*.pdb | Copy-Item -Destination _output
+          Get-ChildItem _output
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: output_win
+          path: _output
