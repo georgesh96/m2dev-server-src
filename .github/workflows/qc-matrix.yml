@@ -1,0 +1,37 @@
+name: qc-matrix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  qc:
+    name: "qc ${{ matrix.name }}"
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: debug,          config: Debug,          extra: "" }
+          - { name: release,        config: Release,        extra: "" }
+          - { name: rwdi-c-noopt,   config: RelWithDebInfo, extra: "-DCMAKE_C_FLAGS_RELWITHDEBINFO=/Od /Zi /DNDEBUG" }
+          - { name: rwdi-clangcl,   config: RelWithDebInfo, extra: "-T ClangCL" }
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build qc
+        shell: pwsh
+        run: |
+          $extra = '${{ matrix.extra }}'
+          if ($extra -like '-T*') { cmake -S . -B build -A x64 -T ClangCL } elseif ($extra) { cmake -S . -B build -A x64 "$extra" } else { cmake -S . -B build -A x64 }
+          cmake --build build --config ${{ matrix.config }} --target qc
+      - name: Compile all quests
+        shell: pwsh
+        run: |
+          git clone -q --depth 1 https://github.com/d1str4ught/m2dev-server.git srv
+          $q = "srv/share/locale/english/quest"
+          Copy-Item (Get-ChildItem build/bin -Recurse -Filter qc.exe | Select-Object -First 1).FullName "$q/qc.exe"
+          cd $q
+          python make.py *> make.log
+          "make.py exit: $LASTEXITCODE"
+          Get-Content make.log -Tail 3
+          "compiled: " + (Select-String -Path make.log -Pattern '^Compiling').Count
+          "object files: " + (Get-ChildItem object -Recurse -File).Count
